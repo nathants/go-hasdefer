@@ -29,13 +29,15 @@ func main() {
 				fmt.Println("fatal: gofmt failed on:", filePath)
 				os.Exit(1)
 			}
-			lns := strings.Split(stdout.String(), "\n")
+			text := stdout.String()
+			text = regexp.MustCompile("(?s)`(.*?)`").ReplaceAllString(text, "``")
+			lns := strings.Split(text, "\n")
 			lastImport := 0
 			inImport := false
 			for i, l := range lns {
 				if strings.HasPrefix(l, "import") {
 					inImport = true
-				} else if inImport && !strings.HasPrefix(l, "\t") {
+				} else if inImport && !strings.HasPrefix(l, "\t") && l != "" {
 					inImport = false
 					lastImport = i
 				}
@@ -44,6 +46,9 @@ func main() {
 				if i <= lastImport {
 					l = ""
 				}
+				l = regexp.MustCompile(`"[^"]+"`).ReplaceAllString(l, `""`)
+				l = regexp.MustCompile("(?s)`(.*?)`").ReplaceAllString(l, "``")
+				l = regexp.MustCompile(`//.*`).ReplaceAllString(l, `//`)
 				lines[filePath] = append(lines[filePath], l)
 			}
 		}
@@ -51,9 +56,9 @@ func main() {
 	for _, filePath := range os.Args {
 		if strings.HasSuffix(filePath, ".go") {
 			for i, line := range lines[filePath] {
-				if regexp.MustCompile(`\bgo\b`).FindAllString(line, -1) != nil {
-					if regexp.MustCompile(`\bgo func\b`).FindAllString(line, -1) != nil {
-						if regexp.MustCompile(`{[^}]*}`).FindAllString(line, -1) == nil {
+				if regexp.MustCompile(`( |\t)go `).FindAllString(line, -1) != nil {
+					if regexp.MustCompile(`( |\t)go func\b`).FindAllString(line, -1) != nil {
+						if strings.HasSuffix(line, "{") {
 							if !strings.HasPrefix(strings.TrimLeft(lines[filePath][i+1], "\t"), "defer") {
 								fmt.Println("missing defer anon func multiliner:     ", filePath+":"+fmt.Sprint(i+1), line)
 								fail = true
@@ -67,17 +72,17 @@ func main() {
 					} else {
 						parts := strings.Split(line, "go ")
 						funcName := parts[len(parts)-1]
-						parts = strings.Split(funcName, ".")
-						funcName = parts[len(parts)-1]
 						parts = strings.Split(funcName, "(")
 						funcName = parts[0]
+						parts = strings.Split(funcName, ".")
+						funcName = parts[len(parts)-1]
 						found := false
 						// TODO index source with a map instead of walking repeatedly
 						for fp, lns := range lines {
 							for j, l := range lns {
 								if strings.HasPrefix(l, "func ") && regexp.MustCompile(`\b`+funcName+`\b`).FindAllString(l, -1) != nil {
 									found = true
-									if regexp.MustCompile(`{[^}]*}`).FindAllString(l, -1) == nil {
+									if strings.HasSuffix(l, "{") {
 										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t"), "defer") {
 											fmt.Println("missing defer top level func multiliner:", fp+":"+fmt.Sprint(j+1), l)
 											fail = true
@@ -90,7 +95,7 @@ func main() {
 									}
 								} else if strings.HasPrefix(strings.TrimLeft(l, "\t"), funcName+" := func(") {
 									found = true
-									if regexp.MustCompile(`{[^}]*}`).FindAllString(l, -1) == nil {
+									if strings.HasSuffix(l, "{") {
 										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t"), "defer") {
 											fmt.Println("missing defer named func multiliner:    ", filePath+":"+fmt.Sprint(j+1), l)
 											fail = true
@@ -105,7 +110,7 @@ func main() {
 							}
 						}
 						if !found {
-							panic("failed to find definition of function:" + line)
+							panic("failed to find definition of function: [" + funcName + "] " + line + " " + filePath)
 						}
 					}
 				}
