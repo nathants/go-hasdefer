@@ -1,4 +1,4 @@
-# go-hasdefault
+# go-hasdefer
 
 ## what
 
