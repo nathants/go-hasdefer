@@ -2,11 +2,11 @@
 
 ## what
 
-a go linter to check that all go routines have a defer statement.
+a go linter to check that all goroutines have a defer statement.
 
 ## why
 
-it's too easy to miss panics when they happen inside go routines, since they exit the defer scope of the caller.
+it's too easy to miss panics when they happen inside goroutines, since they exit the defer scope of the caller.
 
 ## install
 

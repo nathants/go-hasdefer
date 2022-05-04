@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) == 1 || (len(os.Args) > 1 && (os.Args[0] == "-h" || os.Args[0] == "--help" || os.Args[0] == "help")) {
-		fmt.Println("\nlinter to check that all go routines have a defer statement")
+		fmt.Println("\nlinter to check that all goroutines have a defer statement")
 		fmt.Println("\nusage: go-hasdefer $(find -type f -name '*.go')")
 		os.Exit(1)
 	}
