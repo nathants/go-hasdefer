@@ -17,7 +17,6 @@ func main() {
 		fmt.Println("\nusage: go-hasdefer $(find -type f -name '*.go')")
 		os.Exit(1)
 	}
-	fail := false
 	lines := make(map[string][]string)
 	for _, filePath := range os.Args {
 		if strings.HasSuffix(filePath, ".go") {
@@ -53,6 +52,7 @@ func main() {
 			}
 		}
 	}
+	var vals []string
 	for _, filePath := range os.Args {
 		if strings.HasSuffix(filePath, ".go") {
 			for i, line := range lines[filePath] {
@@ -60,13 +60,11 @@ func main() {
 					if regexp.MustCompile(`( |\t)go func\b`).FindAllString(line, -1) != nil {
 						if strings.HasSuffix(line, "{") {
 							if !strings.HasPrefix(strings.TrimLeft(lines[filePath][i+1], "\t"), "defer") {
-								fmt.Println("missing defer anon func multiliner:     ", filePath+":"+fmt.Sprint(i+1), line)
-								fail = true
+								vals = append(vals, strings.Join([]string{"missing defer anon func multiliner:     ", filePath + ":" + fmt.Sprint(i+1), line}, " "))
 							}
 						} else {
 							if regexp.MustCompile(`\bdefer\b`).FindAllString(line, -1) == nil {
-								fmt.Println("missing defer anon func oneliner:       ", filePath+":"+fmt.Sprint(i+1), line)
-								fail = true
+								vals = append(vals, strings.Join([]string{"missing defer anon func oneliner:       ", filePath + ":" + fmt.Sprint(i+1), line}, " "))
 							}
 						}
 					} else {
@@ -84,26 +82,22 @@ func main() {
 									found = true
 									if strings.HasSuffix(l, "{") {
 										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t"), "defer") {
-											fmt.Println("missing defer top level func multiliner:", fp+":"+fmt.Sprint(j+1), l)
-											fail = true
+											vals = append(vals, strings.Join([]string{"missing defer top level func multiliner:", fp + ":" + fmt.Sprint(j+1), l}, " "))
 										}
 									} else {
 										if regexp.MustCompile(`\bdefer\b`).FindAllString(l, -1) == nil {
-											fmt.Println("missing defer top level func oneliner:  ", fp+":"+fmt.Sprint(j+1), l)
-											fail = true
+											vals = append(vals, strings.Join([]string{"missing defer top level func oneliner:  ", fp + ":" + fmt.Sprint(j+1), l}, " "))
 										}
 									}
 								} else if strings.HasPrefix(strings.TrimLeft(l, "\t"), funcName+" := func(") {
 									found = true
 									if strings.HasSuffix(l, "{") {
 										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t"), "defer") {
-											fmt.Println("missing defer named func multiliner:    ", filePath+":"+fmt.Sprint(j+1), l)
-											fail = true
+											vals = append(vals, strings.Join([]string{"missing defer named func multiliner:    ", filePath + ":" + fmt.Sprint(j+1), l}, " "))
 										}
 									} else {
 										if regexp.MustCompile(`\bdefer\b`).FindAllString(l, -1) == nil {
-											fmt.Println("missing defer named func oneliner:      ", filePath+":"+fmt.Sprint(j+1), l)
-											fail = true
+											vals = append(vals, strings.Join([]string{"missing defer named func oneliner:      ", filePath + ":" + fmt.Sprint(j+1), l}, " "))
 										}
 									}
 								}
@@ -117,7 +111,15 @@ func main() {
 			}
 		}
 	}
-	if fail {
+	seen := make(map[string]interface{})
+	for _, val := range vals {
+		_, ok := seen[val]
+		if !ok {
+			fmt.Println(val)
+			seen[val] = nil
+		}
+	}
+	if len(vals) != 0 {
 		os.Exit(1)
 	}
 }
