@@ -45,6 +45,6 @@ go func() {
 }()
 ```
 
-the purpose of this linter is to force your to consider what happens if a goroutine panics, not to force you to include empty defers.
+the purpose of this linter is to force you to consider what happens if a goroutine panics, not to force you to include empty defers.
 
 this is similar to always considering what to do with an err, even if you decide to assign it to `_`.
