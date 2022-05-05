@@ -28,3 +28,23 @@ missing defer named func multiliner:     test/bad/bad_imported.go:8     Foobar3 
 missing defer top level func multiliner: test/bad/bad_import.go:8 func (d *Data) Foobar4() {
 missing defer named func oneliner:       test/bad/bad_imported.go:12    Foobar4 := func() {}
 ```
+
+## notes
+
+either of these is valid:
+
+```go
+go func() {
+    defer func() {}()
+}()
+```
+
+```go
+go func() {
+   // defer func() {}()
+}()
+```
+
+the purpose of this linter is to force your to consider what happens if a goroutine panics, not to force you to include empty defers.
+
+this is similar to always considering what to do with an err, even if you decide to assign it to `_`.
