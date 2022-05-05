@@ -11,6 +11,39 @@ import (
 
 // TODO is it worth using ast instead of strings, even with go fmt regularity?
 
+func emptyMultilineStrings(data []byte) []byte {
+outer:
+	for {
+		outs := regexp.MustCompile("(?s)`(.*?)`").FindAllStringIndex(string(data), -1)
+		for _, out := range outs {
+			head := data[:out[0]]
+			mid := data[out[0]:out[1]]
+			empty := true
+			for _, b := range mid {
+				if b != '\n' && b != '`' {
+					empty = false
+				}
+			}
+			if empty {
+				continue
+			}
+			tail := data[out[1]:]
+			count := bytes.Count(mid, []byte("\n"))
+			mid = []byte("`")
+			for i := 0; i < count; i++ {
+				mid = append(mid, []byte("\n")...)
+			}
+			mid = append(mid, []byte("`")...)
+			data = []byte{}
+			data = append(data, head...)
+			data = append(data, mid...)
+			data = append(data, tail...)
+			continue outer
+		}
+		return data
+	}
+}
+
 func main() {
 	if len(os.Args) == 1 || (len(os.Args) > 1 && (os.Args[0] == "-h" || os.Args[0] == "--help" || os.Args[0] == "help")) {
 		fmt.Println("\nlinter to check that all goroutines have a defer statement")
@@ -29,7 +62,7 @@ func main() {
 				os.Exit(1)
 			}
 			text := stdout.String()
-			text = regexp.MustCompile("(?s)`(.*?)`").ReplaceAllString(text, "``")
+			text = string(emptyMultilineStrings([]byte(text)))
 			lns := strings.Split(text, "\n")
 			lastImport := 0
 			inImport := false
@@ -46,7 +79,6 @@ func main() {
 					l = ""
 				}
 				l = regexp.MustCompile(`"[^"]+"`).ReplaceAllString(l, `""`)
-				l = regexp.MustCompile("(?s)`(.*?)`").ReplaceAllString(l, "``")
 				if !strings.HasPrefix(strings.TrimLeft(l, "\t "), "// defer func() {}()") {
 					l = regexp.MustCompile(`//.*`).ReplaceAllString(l, `//`)
 				}
