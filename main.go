@@ -47,7 +47,9 @@ func main() {
 				}
 				l = regexp.MustCompile(`"[^"]+"`).ReplaceAllString(l, `""`)
 				l = regexp.MustCompile("(?s)`(.*?)`").ReplaceAllString(l, "``")
-				l = regexp.MustCompile(`//.*`).ReplaceAllString(l, `//`)
+				if !strings.HasPrefix(strings.TrimLeft(l, "\t "), "// defer func() {}()") {
+					l = regexp.MustCompile(`//.*`).ReplaceAllString(l, `//`)
+				}
 				lines[filePath] = append(lines[filePath], l)
 			}
 		}
@@ -59,7 +61,7 @@ func main() {
 				if regexp.MustCompile(`( |\t)go `).FindAllString(line, -1) != nil {
 					if regexp.MustCompile(`( |\t)go func\b`).FindAllString(line, -1) != nil {
 						if strings.HasSuffix(line, "{") {
-							if !strings.HasPrefix(strings.TrimLeft(lines[filePath][i+1], "\t"), "defer") {
+							if !strings.HasPrefix(strings.TrimLeft(lines[filePath][i+1], "\t/ "), "defer") {
 								vals = append(vals, strings.Join([]string{"missing defer anon func multiliner:     ", filePath + ":" + fmt.Sprint(i+1), line}, " "))
 							}
 						} else {
@@ -81,7 +83,7 @@ func main() {
 								if strings.HasPrefix(l, "func ") && regexp.MustCompile(`\b`+funcName+`\b`).FindAllString(l, -1) != nil {
 									found = true
 									if strings.HasSuffix(l, "{") {
-										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t"), "defer") {
+										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t/ "), "defer") {
 											vals = append(vals, strings.Join([]string{"missing defer top level func multiliner:", fp + ":" + fmt.Sprint(j+1), l}, " "))
 										}
 									} else {
@@ -92,7 +94,7 @@ func main() {
 								} else if strings.HasPrefix(strings.TrimLeft(l, "\t"), funcName+" := func(") {
 									found = true
 									if strings.HasSuffix(l, "{") {
-										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t"), "defer") {
+										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t/ "), "defer") {
 											vals = append(vals, strings.Join([]string{"missing defer named func multiliner:    ", filePath + ":" + fmt.Sprint(j+1), l}, " "))
 										}
 									} else {
