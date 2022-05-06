@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/mattn/go-isatty"
 )
 
 // TODO is it worth using ast instead of strings, even with go fmt regularity?
@@ -43,6 +45,27 @@ outer:
 		return data
 	}
 }
+
+func color(code int) func(...string) string {
+	forced := os.Getenv("COLORS") != ""
+	return func(xs ...string) string {
+		s := strings.Join(xs, " ")
+		if forced || isatty.IsTerminal(os.Stdout.Fd()) {
+			return fmt.Sprintf("\033[%dm%s\033[0m", code, s)
+		}
+		return s
+	}
+}
+
+var (
+	Red     = color(31)
+	Green   = color(32)
+	Yellow  = color(33)
+	Blue    = color(34)
+	Magenta = color(35)
+	Cyan    = color(36)
+	White   = color(37)
+)
 
 func main() {
 	if len(os.Args) == 1 || (len(os.Args) > 1 && (os.Args[0] == "-h" || os.Args[0] == "--help" || os.Args[0] == "help")) {
@@ -94,11 +117,11 @@ func main() {
 					if regexp.MustCompile(`( |\t)go func\b`).FindAllString(line, -1) != nil {
 						if strings.HasSuffix(line, "{") {
 							if !strings.HasPrefix(strings.TrimLeft(lines[filePath][i+1], "\t/ "), "defer") {
-								vals = append(vals, strings.Join([]string{"missing defer anon func multiliner:     ", filePath + ":" + fmt.Sprint(i+1), line}, " "))
+								vals = append(vals, strings.Join([]string{"missing defer anon func multiliner:     ", Cyan(filePath + ":" + fmt.Sprint(i+1)), line}, " "))
 							}
 						} else {
 							if regexp.MustCompile(`\bdefer\b`).FindAllString(line, -1) == nil {
-								vals = append(vals, strings.Join([]string{"missing defer anon func oneliner:       ", filePath + ":" + fmt.Sprint(i+1), line}, " "))
+								vals = append(vals, strings.Join([]string{"missing defer anon func oneliner:       ", Cyan(filePath + ":" + fmt.Sprint(i+1)), line}, " "))
 							}
 						}
 					} else {
@@ -109,29 +132,36 @@ func main() {
 						parts = strings.Split(funcName, ".")
 						funcName = parts[len(parts)-1]
 						found := false
-						// TODO index source with a map instead of walking repeatedly
-						for fp, lns := range lines {
-							for j, l := range lns {
-								if strings.HasPrefix(l, "func ") && regexp.MustCompile(`\b`+funcName+`\b`).FindAllString(l, -1) != nil {
-									found = true
-									if strings.HasSuffix(l, "{") {
-										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t/ "), "defer") {
-											vals = append(vals, strings.Join([]string{"missing defer top level func multiliner:", fp + ":" + fmt.Sprint(j+1), l}, " "))
-										}
-									} else {
-										if regexp.MustCompile(`\bdefer\b`).FindAllString(l, -1) == nil {
-											vals = append(vals, strings.Join([]string{"missing defer top level func oneliner:  ", fp + ":" + fmt.Sprint(j+1), l}, " "))
-										}
+						// check for named functions in the same file
+						lns := lines[filePath]
+						for j, l := range lns {
+							if strings.HasPrefix(strings.TrimLeft(l, "\t"), funcName+" := func(") {
+								found = true
+								if strings.HasSuffix(l, "{") {
+									if !strings.HasPrefix(strings.TrimLeft(lns[j+1], "\t/ "), "defer") {
+										vals = append(vals, strings.Join([]string{"missing defer named func multiliner:    ", Cyan(filePath + ":" + fmt.Sprint(j+1)), l, Red("from:"), Green(filePath + ":" + fmt.Sprint(i+1)), line}, " "))
 									}
-								} else if strings.HasPrefix(strings.TrimLeft(l, "\t"), funcName+" := func(") {
-									found = true
-									if strings.HasSuffix(l, "{") {
-										if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t/ "), "defer") {
-											vals = append(vals, strings.Join([]string{"missing defer named func multiliner:    ", filePath + ":" + fmt.Sprint(j+1), l}, " "))
-										}
-									} else {
-										if regexp.MustCompile(`\bdefer\b`).FindAllString(l, -1) == nil {
-											vals = append(vals, strings.Join([]string{"missing defer named func oneliner:      ", filePath + ":" + fmt.Sprint(j+1), l}, " "))
+								} else {
+									if regexp.MustCompile(`\bdefer\b`).FindAllString(l, -1) == nil {
+										vals = append(vals, strings.Join([]string{"missing defer named func oneliner:      ", Cyan(filePath + ":" + fmt.Sprint(j+1)), l, Red("from:"), Green(filePath + ":" + fmt.Sprint(i+1)), line}, " "))
+									}
+								}
+							}
+						}
+						// check all source code for top level functions
+						if !found {
+							for fp, lns := range lines {
+								for j, l := range lns {
+									if strings.HasPrefix(l, "func ") && regexp.MustCompile(`\b`+funcName+`\b`).FindAllString(l, -1) != nil {
+										found = true
+										if strings.HasSuffix(l, "{") {
+											if !strings.HasPrefix(strings.TrimLeft(lines[fp][j+1], "\t/ "), "defer") {
+												vals = append(vals, strings.Join([]string{"missing defer top level func multiliner:", Cyan(fp + ":" + fmt.Sprint(j+1)), l, Red("from:"), Green(filePath + ":" + fmt.Sprint(i+1)), line}, " "))
+											}
+										} else {
+											if regexp.MustCompile(`\bdefer\b`).FindAllString(l, -1) == nil {
+												vals = append(vals, strings.Join([]string{"missing defer top level func oneliner:  ", Cyan(fp + ":" + fmt.Sprint(j+1)), l, Red("from:"), Green(filePath + ":" + fmt.Sprint(i+1)), line}, " "))
+											}
 										}
 									}
 								}
